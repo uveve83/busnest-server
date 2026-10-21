@@ -1,0 +1,29 @@
+{
+  "name": "bus-management-server",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "dev": "nodemon index.js",
+    "dev:gps": "nodemon gps-server.js",
+    "start": "node index.js",
+    "start:gps": "node gps-server.js"
+  },
+  "dependencies": {
+    "africastalking": "^0.7.9",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.1",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.1.5",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.1.0",
+    "morgan": "^1.10.0",
+    "node-fetch": "^3.3.2",
+    "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.3"
+  }
+}

@@ -1,0 +1,2 @@
+import AuditLog from '../models/AuditLog.js'
+export function audit(action,entityType){return async(req,res,next)=>{res.on('finish',()=>{if(res.statusCode<400)AuditLog.create({userId:req.user?.id,userEmail:req.user?.email,role:req.user?.role,action,entityType,entityId:req.params?.id||req.body?.journeyId||req.body?.busId,details:{method:req.method,path:req.originalUrl},ip:req.ip}).catch(()=>{})});next()}}

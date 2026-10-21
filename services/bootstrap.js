@@ -1,0 +1,2 @@
+import User from '../models/User.js'
+export async function ensureAdmin(){const email=(process.env.ADMIN_EMAIL||'admin@busnest.rw').toLowerCase();let user=await User.findOne({email});if(!user){const password=process.env.ADMIN_PASSWORD;if(!password)throw new Error('ADMIN_PASSWORD is required on first startup');user=await User.create({name:process.env.ADMIN_NAME||'BusNest Administrator',email,password,role:'super_admin',status:'active',phone:process.env.ADMIN_PHONE||''});console.log(`✅ Admin account created: ${email}`)}else console.log(`🔐 Authentication enabled for ${email}`)}

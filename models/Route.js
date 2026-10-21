@@ -1,0 +1,7 @@
+import mongoose from 'mongoose'
+const pointSchema=new mongoose.Schema({locationId:String,name:{type:String,required:true},lat:{type:Number,required:true},lng:{type:Number,required:true},radius:{type:Number,default:100}},{_id:false})
+const stopSchema=new mongoose.Schema({stopId:String,name:{type:String,required:true},lat:{type:Number,required:true},lng:{type:Number,required:true},radius:{type:Number,default:100},order:{type:Number,default:0},expectedArrival:String},{_id:false})
+const directionSchema=new mongoose.Schema({start:{type:pointSchema,required:true},end:{type:pointSchema,required:true},stops:{type:[stopSchema],default:[]},alternatives:{type:[new mongoose.Schema({geometry:[[Number]],distanceMeters:Number,durationSeconds:Number,label:String},{_id:false})],default:[]},selectedAlternative:{type:Number,default:0},geometry:{type:[[Number]],default:[]},distanceMeters:{type:Number,default:0},durationSeconds:{type:Number,default:0}},{_id:false})
+const routeSchema=new mongoose.Schema({routeId:{type:String,unique:true},name:{type:String,required:true},busId:String,bus:String,driverId:String,driver:String,directions:{go:{type:directionSchema,required:true},back:{type:directionSchema,required:true}},status:{type:String,enum:['active','inactive','draft'],default:'active'},active:{type:Boolean,default:true}},{timestamps:true})
+routeSchema.pre('save',async function(next){if(!this.routeId)this.routeId='R'+String((await mongoose.model('Route').countDocuments())+1).padStart(3,'0');next()})
+export default mongoose.model('Route',routeSchema)
