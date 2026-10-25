@@ -282,11 +282,13 @@ async function checkGeofence(busId, lat, lng) {
     }
 
     // --- Drop-off side: on the BACK trip, alert parents as the bus
-    // approaches each boarded student's drop-off stop ---
+    // approaches each onboard student's drop-off stop ---
     const journey = await Journey.findOne({ busId, status: 'active' })
     if (journey && journey.direction === 'back') {
+      const onboardIds = journey.onboardStudentIds || []
+      if (!onboardIds.length) return
       const boardedStudents = await Student.find({
-        bus: busId, status: 'boarded', active: true,
+        bus: busId, studentId: { $in: onboardIds }, active: true,
         phone: { $exists: true, $ne: '' },
       })
       for (const student of boardedStudents) {
@@ -313,7 +315,7 @@ async function checkGeofence(busId, lat, lng) {
             studentId: student.studentId,
             busId,
             triggeredBy: 'geofence',
-            message: `BusNest: Bus ${busId} is arriving at ${dropStopName} in about ${minutesAway} minute${minutesAway !== 1 ? 's' : ''} to drop off ${student.name}. Please be ready to receive them.`,
+            message: `BusNest: Bus ${busId} is ${minutesAway} minute${minutesAway !== 1 ? 's' : ''} away from ${dropStopName}. Please come outside to receive ${student.name}.`,
           }).catch(err => console.error('Dropoff geofence SMS error:', err.message))
           Alert.create({
             type: 'geofence',
