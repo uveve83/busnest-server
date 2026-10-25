@@ -196,3 +196,17 @@ export async function notifyMissedDropoff({ student, busId, stopName }) {
     triggeredBy: 'missed_dropoff', studentId: student.studentId, busId,
   })
 }
+
+// Auto-trigger: bus near drop-off stop (evening) — tell parent to come receive child
+export async function notifyBusNearDropoff({ student, busId, minutesAway, stopName }) {
+  if (!student.phone) return
+  const message = `BusNest: Bus ${busId} is ${minutesAway} minute${minutesAway !== 1 ? 's' : ''} away from ${stopName}. Please come outside to receive ${student.name}.`
+  return sendSMS({
+    to:          student.phone,
+    message,
+    recipient:   student.parent || student.name,
+    triggeredBy: 'geofence_dropoff',
+    studentId:   student.studentId,
+    busId,
+  })
+}

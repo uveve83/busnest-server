@@ -1,15 +1,14 @@
 import Student from '../models/Student.js'
 import Stop from '../models/Stop.js'
-import { notifyBusApproaching } from './sms.js'
+import Journey from '../models/Journey.js'
+import { notifyBusApproaching, notifyBusDropoff } from './sms.js'
 
-// Track which stop+bus combos already notified today
 const notifiedToday = {}
 
-function getTodayKey(busId, stopName) {
-  return `${busId}:${stopName}:${new Date().toDateString()}`
+function getTodayKey(busId, stopName, type) {
+  return `${busId}:${stopName}:${type}:${new Date().toDateString()}`
 }
 
-// Haversine distance in meters
 function distanceMeters(lat1, lng1, lat2, lng2) {
   const R    = 6371000
   const dLat = (lat2 - lat1) * Math.PI / 180
@@ -20,43 +19,60 @@ function distanceMeters(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
-// Called from GPS TCP server on every location packet
 export async function checkGeofence(busId, lat, lng) {
   try {
-    // Load stops from MongoDB (fresh each time so new stops work immediately)
-    const stops    = await Stop.find({ active: true })
+    const stops = await Stop.find({ active: true })
     if (!stops.length) return
 
-    // Find all pending students on this bus with phone numbers
-    const students = await Student.find({
-      bus:    busId,
-      status: 'pending',
-      active: true,
-      phone:  { $exists: true, $ne: '' },
-    })
-    if (!students.length) return
+    const journey = await Journey.findOne({ busId, status: { $in: ['active', 'ready'] } }).lean()
+    const direction = journey?.direction || 'go'
 
-    for (const student of students) {
-      // Find the stop matching this student's pickup stop
-      const stop = stops.find(s =>
-        s.name.toLowerCase() === (student.stop || '').toLowerCase() ||
-        s.name.toLowerCase().includes((student.stop || '').toLowerCase())
-      )
-      if (!stop) continue
-
-      const dist = distanceMeters(lat, lng, stop.lat, stop.lng)
-      const key  = getTodayKey(busId, stop.name)
-
-      if (dist <= stop.radius && !notifiedToday[key]) {
-        notifiedToday[key] = true
-        const minutesAway  = Math.max(1, Math.round(dist / 200))
-
-        console.log(`📡 GEOFENCE: Bus ${busId} is ${Math.round(dist)}m from ${stop.name} — notifying ${student.name}`)
-
-        // SMS parent
-        notifyBusApproaching({ student, busId, minutesAway }).catch(err =>
-          console.error('Geofence SMS error:', err.message)
+    if (direction === 'go') {
+      // PICKUP: students still pending (not yet boarded)
+      const students = await Student.find({
+        bus: busId, status: 'pending', active: true,
+        phone: { $exists: true, $ne: '' },
+      })
+      for (const student of students) {
+        const stop = stops.find(s =>
+          s.name.toLowerCase() === (student.stop || '').toLowerCase()
         )
+        if (!stop) continue
+        const dist = distanceMeters(lat, lng, stop.lat, stop.lng)
+        const key = getTodayKey(busId, stop.name, 'pickup')
+        if (dist <= stop.radius && !notifiedToday[key]) {
+          notifiedToday[key] = true
+          const minutesAway = Math.max(1, Math.round(dist / 200))
+          console.log(`📡 GEOFENCE (pickup): Bus ${busId} near ${stop.name} (${Math.round(dist)}m) — notifying ${student.name}`)
+          notifyBusApproaching({ student, busId, minutesAway }).catch(err =>
+            console.error('Geofence SMS error:', err.message)
+          )
+        }
+      }
+    } else {
+      // DROP-OFF: students currently onboard
+      const onboardIds = journey?.onboardStudentIds || []
+      if (!onboardIds.length) return
+      const students = await Student.find({
+        bus: busId, studentId: { $in: onboardIds }, active: true,
+        phone: { $exists: true, $ne: '' },
+      })
+      for (const student of students) {
+        const dropStopName = student.dropoffStop || student.stop
+        const stop = stops.find(s =>
+          s.name.toLowerCase() === (dropStopName || '').toLowerCase()
+        )
+        if (!stop) continue
+        const dist = distanceMeters(lat, lng, stop.lat, stop.lng)
+        const key = getTodayKey(busId, stop.name, 'dropoff')
+        if (dist <= stop.radius && !notifiedToday[key]) {
+          notifiedToday[key] = true
+          const minutesAway = Math.max(1, Math.round(dist / 200))
+          console.log(`📡 GEOFENCE (dropoff): Bus ${busId} near ${stop.name} (${Math.round(dist)}m) — notifying ${student.name}`)
+          notifyBusDropoff({ student, busId, minutesAway, stopName: stop.name }).catch(err =>
+            console.error('Geofence SMS error:', err.message)
+          )
+        }
       }
     }
   } catch (err) {
